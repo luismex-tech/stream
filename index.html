@@ -83,154 +83,154 @@
     </div>
 
     <script>
-        const peer = new Peer();
-        let localStream;
-        let currentCall;
-        let audioContext, analyser, microphone, javascriptNode;
+          const peer = new Peer();
+          let localStream;
+          let currentCall;
+          let audioContext, analyser, microphone;
 
-        // Log visual
-        function log(msg) {
-            const el = document.getElementById('status');
-            el.innerHTML = "> " + msg;
-            console.log(msg);
-        }
+          // --- SISTEMA DE LOGS EN PANTALLA ---
+          function log(msg, type = 'info') {
+              const el = document.getElementById('status');
+              const color = type === 'error' ? '#ff4444' : '#0f0';
+              el.innerHTML = `<span style="color:${color}">> ${msg}</span>`;
+              console.log(msg);
+          }
 
-        peer.on('open', (id) => {
-            document.getElementById('my-id').innerText = id;
-            log("Conectado al servidor. Listo para enlazar.");
-        });
+          peer.on('open', (id) => {
+              document.getElementById('my-id').innerText = id;
+              log("Sistema en línea. Esperando instrucciones.");
+          });
 
-        peer.on('error', (err) => log("Error: " + err.type));
+          peer.on('error', (err) => log("ERROR PEERJS: " + err.type, 'error'));
 
-        // --- MANEJO DE VÚMETRO ---
-        function setupVuMeter(stream) {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioContext.state === 'suspended') audioContext.resume();
+          // --- VÚMETRO (Visualización) ---
+          function setupVuMeter(stream) {
+              try {
+                  if (!audioContext) {
+                      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                  }
+                  if (audioContext.state === 'suspended') audioContext.resume();
 
-            analyser = audioContext.createAnalyser();
-            analyser.smoothingTimeConstant = 0.8;
-            analyser.fftSize = 1024;
+                  analyser = audioContext.createAnalyser();
+                  analyser.smoothingTimeConstant = 0.3;
+                  analyser.fftSize = 512;
 
-            microphone = audioContext.createMediaStreamSource(stream);
-            microphone.connect(analyser);
+                  microphone = audioContext.createMediaStreamSource(stream);
+                  microphone.connect(analyser);
 
-            // Procesador de script para detectar volumen (manera eficiente)
-            const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
-            analyser.connect(scriptProcessor);
-            scriptProcessor.connect(audioContext.destination);
+                  const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+                  analyser.connect(scriptProcessor);
+                  scriptProcessor.connect(audioContext.destination);
 
-            scriptProcessor.onaudioprocess = function() {
-                const array = new Uint8Array(analyser.frequencyBinCount);
-                analyser.getByteFrequencyData(array);
+                  scriptProcessor.onaudioprocess = function() {
+                      const array = new Uint8Array(analyser.frequencyBinCount);
+                      analyser.getByteFrequencyData(array);
+                      let values = 0;
+                      for (let i = 0; i < array.length; i++) values += array[i];
 
-                let values = 0;
-                const length = array.length;
-                for (let i = 0; i < length; i++) {
-                    values += array[i];
-                }
-                const average = values / length;
+                      const average = values / array.length;
+                      let percent = Math.min(100, average * 2.5);
+                      document.getElementById('vu-bar').style.width = percent + "%";
 
-                // Mapear el valor promedio (0-255) a porcentaje (0-100) con algo de ganancia visual
-                let percent = Math.min(100, average * 2.5);
+                      const peakLed = document.getElementById('peak-led');
+                      peakLed.style.display = (percent > 90) ? 'block' : 'none';
+                  };
+              } catch (e) {
+                  console.warn("No se pudo iniciar vúmetro (contexto de audio):", e);
+              }
+          }
 
-                document.getElementById('vu-bar').style.width = percent + "%";
+          // --- FUNCIÓN DE INTENTO DE MICRÓFONO (NUEVA Y ROBUSTA) ---
+          async function getMicStream() {
+              // 1. INTENTO: Calidad Estudio (Sin filtros)
+              try {
+                  log("Intentando abrir micrófono en Alta Fidelidad...");
+                  return await navigator.mediaDevices.getUserMedia({
+                      audio: {
+                          echoCancellation: false,
+                          noiseSuppression: false,
+                          autoGainControl: false,
+                          channelCount: 2
+                      }
+                  });
+              } catch (err) {
+                  log("⚠️ Hardware no soporta modo Estudio. Reintentando en modo Estándar...", 'error');
+                  console.warn("Fallo HiFi:", err);
+              }
 
-                // Indicador de CLIP (Saturación) si pasa del 95%
-                const peakLed = document.getElementById('peak-led');
-                if(percent > 95) peakLed.style.display = 'block';
-                else peakLed.style.display = 'none';
-            };
-        }
+              // 2. INTENTO: Calidad Estándar (Fallback)
+              try {
+                  return await navigator.mediaDevices.getUserMedia({ audio: true });
+              } catch (err) {
+                  throw err; // Si falla aquí, es bloqueo de permisos real
+              }
+          }
 
-        // --- TRUCO PARA EL BITRATE (SDP Munging) ---
-        // WebRTC negocia automáticamente, pero podemos "hackear" el mensaje SDP para forzar calidad
-        function updateSdpBitrate(sdp, bitrate) {
-            // Buscamos la línea de formato de opus (usualmente 111) y agregamos maxaveragebitrate
-            const modifier = 'a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=' + (bitrate * 1000);
+          // --- TRANSMISOR ---
+          async function startTransmission() {
+              const remoteId = document.getElementById('remote-id').value;
+              const bitrate = document.getElementById('bitrate-select').value;
 
-            // Reemplazamos la línea existente o la agregamos si es estándar
-            // Esta regex busca la línea fmtp del codec opus
-            return sdp.replace(/a=fmtp:111.*/g, modifier);
-        }
+              if (!remoteId) return alert("Falta el ID destino");
 
-        // --- TRANSMISOR (LOCUTOR) ---
-        async function startTransmission() {
-            const remoteId = document.getElementById('remote-id').value;
-            const bitrate = document.getElementById('bitrate-select').value;
+              try {
+                  // Usamos la nueva función inteligente
+                  localStream = await getMicStream();
 
-            if (!remoteId) return alert("Ingresa el ID de la cabina");
+                  log(`✅ Micrófono abierto. Conectando...`);
+                  setupVuMeter(localStream);
 
-            try {
-                // Pedimos audio SIN procesamiento (Raw Audio)
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false,
-                        channelCount: 2
-                    }
-                });
+                  const options = {
+                      sdpTransform: (sdp) => {
+                          return sdp.replace(/a=fmtp:111.*/g, 'a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=' + (bitrate * 1000));
+                      }
+                  };
 
-                localStream = stream;
-                setupVuMeter(localStream); // Ver mi propio micro
+                  const call = peer.call(remoteId, localStream, options);
+                  currentCall = call;
 
-                log(`Iniciando transmisión a ${bitrate} kbps...`);
+                  document.getElementById('btn-transmit').classList.add('live');
+                  document.getElementById('btn-transmit').innerText = "📡 TRANSMITIENDO AHORA";
 
-                // Hacemos la llamada interceptando el SDP para inyectar el bitrate
-                const options = {
-                    sdpTransform: (sdp) => {
-                        log("Ajustando calidad de audio en protocolo...");
-                        return updateSdpBitrate(sdp, bitrate);
-                    }
-                };
+                  call.on('close', () => {
+                      log("Transmisión finalizada.");
+                      document.getElementById('btn-transmit').classList.remove('live');
+                  });
 
-                const call = peer.call(remoteId, localStream, options);
-                currentCall = call;
+                  call.on('error', (e) => log("Error en llamada: " + e, 'error'));
 
-                document.getElementById('btn-transmit').classList.add('live');
-                document.getElementById('btn-transmit').innerText = "📡 EN EL AIRE (Transmitiendo)";
+              } catch (err) {
+                  // Aquí capturamos el error real exacto
+                  if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                      log("❌ ACCESO DENEGADO: Haz clic en el candado 🔒 de la URL y permite el micrófono.", 'error');
+                  } else if (err.name === 'NotFoundError') {
+                      log("❌ NO SE DETECTA MICRÓFONO: Conecta uno.", 'error');
+                  } else {
+                      log("❌ ERROR DESCONOCIDO: " + err.message, 'error');
+                  }
+              }
+          }
 
-                call.on('close', () => {
-                    log("Conexión finalizada.");
-                    document.getElementById('btn-transmit').classList.remove('live');
-                });
+          // --- RECEPTOR ---
+          let incomingCallRequest = null;
+          peer.on('call', (call) => {
+              incomingCallRequest = call;
+              document.getElementById('receiver-controls').classList.remove('hidden');
+              log("¡Llamada entrante!");
+          });
 
-            } catch (err) {
-                log("Error acceso micro: " + err);
-                alert("No se pudo acceder al micrófono. Verifica HTTPS.");
-            }
-        }
-
-        // --- RECEPTOR (CABINA) ---
-        let incomingCallRequest = null;
-
-        peer.on('call', (call) => {
-            incomingCallRequest = call;
-            document.getElementById('main-controls').classList.add('hidden');
-            document.getElementById('receiver-controls').classList.remove('hidden');
-            log("¡Llamada entrante detectada!");
-        });
-
-        function answerCall() {
-            if(!incomingCallRequest) return;
-
-            incomingCallRequest.answer(); // Respondemos
-
-            incomingCallRequest.on('stream', (remoteStream) => {
-                log("Recibiendo audio remoto...");
-
-                const audio = document.getElementById('remote-audio');
-                audio.srcObject = remoteStream;
-                audio.play();
-
-                // Conectar el vúmetro al audio que llega para ver que modula
-                setupVuMeter(remoteStream);
-            });
-
-            document.getElementById('receiver-controls').innerHTML = "<h3>🔴 AL AIRE</h3><p>Recibiendo señal...</p>";
-        }
-    </script>
+          function answerCall() {
+              if(!incomingCallRequest) return;
+              incomingCallRequest.answer();
+              incomingCallRequest.on('stream', (remoteStream) => {
+                  log("🔊 Audio recibido y reproduciendo.");
+                  const audio = document.getElementById('remote-audio');
+                  audio.srcObject = remoteStream;
+                  audio.play().catch(e => log("Error Autoplay: Haz clic en la página."));
+                  setupVuMeter(remoteStream);
+              });
+              document.getElementById('receiver-controls').innerHTML = "<h3 style='color:#0f0'>ENLAZADO</h3>";
+          }
+      </script>
 </body>
 </html>
