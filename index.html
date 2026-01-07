@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RadioLink - Alta Fidelidad</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #222; color: white; text-align: center; padding: 20px; }
+        .box { background: #333; padding: 20px; border-radius: 10px; max-width: 500px; margin: 0 auto; }
+        input { padding: 10px; width: 70%; }
+        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; font-weight: bold; }
+        button.recibir { background: #28a745; }
+        #status { margin-top: 20px; font-style: italic; color: #aaa; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="box">
+        <h2>📻 RadioLink P2P</h2>
+        <p>Sistema de enlace remoto de alta calidad</p>
+
+        <div id="id-panel">
+            <p>Tu ID para compartir:</p>
+            <h3 id="my-id">Generando...</h3>
+        </div>
+
+        <hr>
+
+        <div id="connect-panel">
+            <input type="text" id="remote-id" placeholder="Pega aquí el ID de la otra parte">
+            <br><br>
+            <button onclick="conectarYTransmitir()">🎙️ CONECTAR Y TRANSMITIR (Lado Remoto)</button>
+        </div>
+
+        <div id="status">Esperando acciones...</div>
+
+        <audio id="remote-audio" autoplay controls></audio>
+    </div>
+
+    <script>
+        // 1. Inicializar PeerJS (Usamos el servidor cloud gratuito de PeerJS para pruebas)
+        const peer = new Peer();
+        let localStream;
+
+        // Mostrar mi ID cuando se conecte al servidor de señalización
+        peer.on('open', (id) => {
+            document.getElementById('my-id').innerText = id;
+            document.getElementById('status').innerText = "Listo. Comparte tu ID o ingresa uno.";
+        });
+
+        // 2. CONFIGURACIÓN CRÍTICA PARA RADIO (Alta Calidad)
+        // Esto desactiva el procesamiento de voz para que suene como estudio
+        const mediaConstraints = {
+            audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                channelCount: 2, // Estéreo
+                sampleRate: 48000, // Calidad DVD/Radio
+                sampleSize: 16
+            },
+            video: false
+        };
+
+        // 3. Lógica para el que RECIBE (La Cabina/Estudio)
+        peer.on('call', (call) => {
+            if(confirm("¿Aceptar conexión entrante de remoto?")) {
+                // Respondemos la llamada (sin enviar audio de vuelta necesariamente, o sí si quieres talkback)
+                call.answer();
+
+                call.on('stream', (remoteStream) => {
+                    document.getElementById('status').innerText = "🔴 AL AIRE: Recibiendo audio...";
+                    const audioElem = document.getElementById('remote-audio');
+                    audioElem.srcObject = remoteStream;
+                    // Asegurar que el volumen esté al máximo
+                    audioElem.volume = 1.0;
+                });
+            }
+        });
+
+        // 4. Lógica para el que TRANSMITE (El Locutor Remoto)
+        async function conectarYTransmitir() {
+            const remoteId = document.getElementById('remote-id').value;
+            if (!remoteId) return alert("Ingresa el ID de la cabina");
+
+            document.getElementById('status').innerText = "Solicitando acceso al micrófono...";
+
+            try {
+                // Obtener micrófono con calidad de estudio
+                localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+
+                document.getElementById('status').innerText = "Conectando con cabina...";
+
+                // Realizar la llamada
+                const call = peer.call(remoteId, localStream);
+
+                call.on('stream', (remoteStream) => {
+                    // Si la cabina nos habla de vuelta (Talkback)
+                    document.getElementById('remote-audio').srcObject = remoteStream;
+                });
+
+                call.on('close', () => {
+                    document.getElementById('status').innerText = "Conexión terminada.";
+                });
+
+                document.getElementById('status').innerText = "🟢 TRANSMITIENDO";
+
+            } catch (err) {
+                console.error(err);
+                alert("Error: No se pudo acceder al micrófono o conectar. (Asegúrate de usar HTTPS)");
+            }
+        }
+    </script>
+</body>
+</html>
