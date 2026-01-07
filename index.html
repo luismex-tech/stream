@@ -85,34 +85,45 @@
 
 <audio id="remote-audio"></audio>
 
-<script>
-    // --- VARIABLES GLOBALES ---
-    let peer = null;
-    let localStream = null;
-    let currentCall = null;
-    let incomingCallRequest = null;
-    let audioContext, analyser, microphone;
-
-    // --- UTILIDAD DE LOGS ---
-    function log(msg, type = 'info') {
-        const consoleDiv = document.getElementById('console-log');
-        const color = type === 'error' ? '#ff4444' : (type === 'success' ? '#00ff00' : '#cccccc');
-        consoleDiv.innerHTML += `<div style="color:${color}">> ${msg}</div>`;
-        consoleDiv.scrollTop = consoleDiv.scrollHeight; // Auto-scroll
-    }
-
-    // --- 1. INICIALIZAR PEERJS ---
+// --- 1. INICIALIZAR PEERJS CON SOPORTE 4G (TURN) ---
     function initPeer() {
         const myId = document.getElementById('my-id-input').value.trim();
         if (!myId) return alert("Por favor escribe un nombre.");
 
-        log("Conectando a PeerJS...", 'info');
+        log("Conectando con soporte para redes móviles...", 'info');
 
         try {
-            peer = new Peer(myId);
+            // AQUÍ ESTÁ LA MAGIA PARA QUE FUNCIONE EN 4G
+            peer = new Peer(myId, {
+                config: {
+                    iceServers: [
+                        // Servidores STUN (Ayudan a encontrar la ruta pública - Gratuitos de Google)
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+
+                        // Servidor TURN (El "Puente" para saltar el firewall de Telcel/Movistar)
+                        // Usamos OpenRelay (Gratuito para desarrollo)
+                        {
+                            urls: "turn:openrelay.metered.ca:80",
+                            username: "openrelayproject",
+                            credential: "openrelayproject"
+                        },
+                        {
+                            urls: "turn:openrelay.metered.ca:443",
+                            username: "openrelayproject",
+                            credential: "openrelayproject"
+                        },
+                        {
+                            urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                            username: "openrelayproject",
+                            credential: "openrelayproject"
+                        }
+                    ]
+                }
+            });
 
             peer.on('open', (id) => {
-                log(`✅ Conexión establecida. ID: ${id}`, 'success');
+                log(`✅ Conexión establecida (Modo Relay Activo). ID: ${id}`, 'success');
                 document.getElementById('display-my-id').innerText = id;
                 document.getElementById('screen-login').classList.add('hidden');
                 document.getElementById('screen-controls').classList.remove('hidden');
@@ -121,156 +132,20 @@
             peer.on('error', (err) => {
                 log(`❌ Error PeerJS: ${err.type}`, 'error');
                 if(err.type === 'unavailable-id') alert("Ese nombre ya está en uso. Elige otro.");
-                if(err.type === 'peer-unavailable') log("⚠️ El destino no está conectado o escribiste mal el ID.", 'error');
+                if(err.type === 'peer-unavailable') log("⚠️ Destino no encontrado. Revisa el ID.", 'error');
             });
 
-            // Escuchar llamadas entrantes
             peer.on('call', (call) => {
                 log("📞 ¡Llamada entrante detectada!", 'success');
                 incomingCallRequest = call;
                 document.getElementById('screen-incoming').classList.remove('hidden');
-                document.getElementById('screen-controls').classList.add('hidden'); // Ocultar controles normales
+                document.getElementById('screen-controls').classList.add('hidden');
             });
 
         } catch (e) {
             log("Error crítico al crear Peer: " + e, 'error');
         }
     }
-
-    // --- 2. GESTIÓN DEL MICRÓFONO (ROBUSTA) ---
-    async function getMicrophone() {
-        log("Solicitando acceso al micrófono...", 'info');
-        try {
-            // Intento 1: Alta Calidad (Sin filtros)
-            return await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    channelCount: 2
-                }
-            });
-        } catch (err) {
-            log("⚠️ Hardware no soporta modo 'Studio'. Cambiando a modo estándar...", 'info');
-            // Intento 2: Estándar (Fallback)
-            try {
-                return await navigator.mediaDevices.getUserMedia({ audio: true });
-            } catch (err2) {
-                if(err2.name === 'NotAllowedError') {
-                    alert("¡Permiso denegado! Debes permitir el micrófono en el candado 🔒 de la URL.");
-                    log("❌ PERMISO DENEGADO", 'error');
-                }
-                throw err2;
-            }
-        }
-    }
-
-    // --- 3. INICIAR TRANSMISIÓN (Llamar) ---
-    async function startCall() {
-        const destId = document.getElementById('remote-id-input').value.trim();
-        const bitrate = document.getElementById('bitrate-select').value;
-
-        if (!destId) return alert("Escribe el ID del destino.");
-
-        try {
-            localStream = await getMicrophone();
-            setupVuMeter(localStream); // Ver mi propio audio
-            log("✅ Micrófono abierto. Llamando...", 'success');
-
-            // Hack para Bitrate (SDP Munging)
-            const options = {
-                sdpTransform: (sdp) => {
-                    log(`Ajustando bitrate a ${bitrate} kbps...`);
-                    return sdp.replace(/a=fmtp:111.*/g, `a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=${bitrate * 1000}`);
-                }
-            };
-
-            const call = peer.call(destId, localStream, options);
-            currentCall = call;
-
-            // UI Update
-            const btn = document.getElementById('btn-transmit');
-            btn.innerText = "📡 EN EL AIRE (Transmitiendo)";
-            btn.classList.remove('btn-green');
-            btn.classList.add('btn-red');
-
-            call.on('close', () => {
-                log("Llamada finalizada.");
-                btn.innerText = "🎙️ ABRIR MICRO Y TRANSMITIR";
-                btn.classList.remove('btn-red');
-                btn.classList.add('btn-green');
-            });
-
-            call.on('error', (e) => log("Error en llamada: " + e, 'error'));
-
-            // Si el otro lado nos habla (Talkback)
-            call.on('stream', (remoteStream) => {
-                const audio = document.getElementById('remote-audio');
-                audio.srcObject = remoteStream;
-                audio.play();
-            });
-
-        } catch (e) {
-            log("No se pudo iniciar llamada: " + e, 'error');
-        }
-    }
-
-    // --- 4. RECIBIR TRANSMISIÓN (Contestar) ---
-    function answerCall() {
-        if (!incomingCallRequest) return;
-
-        // Respondemos (podemos enviar nuestro audio o null si solo queremos escuchar)
-        // Para simplificar, respondemos solo para recibir, sin enviar audio de vuelta por ahora
-        incomingCallRequest.answer();
-
-        document.getElementById('screen-incoming').classList.add('hidden');
-        document.getElementById('screen-controls').classList.remove('hidden');
-        log("✅ Llamada contestada. Esperando buffer...", 'success');
-
-        incomingCallRequest.on('stream', (remoteStream) => {
-            log("🔊 Audio recibido. Reproduciendo...", 'success');
-            const audio = document.getElementById('remote-audio');
-            audio.srcObject = remoteStream;
-            audio.play().catch(e => log("⚠️ Autoplay bloqueado. Haz clic en la página."));
-
-            // Conectar Vúmetro al audio que llega
-            setupVuMeter(remoteStream);
-        });
-    }
-
-    // --- 5. VÚMETRO VISUAL ---
-    function setupVuMeter(stream) {
-        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') audioContext.resume();
-
-        // Evitar duplicados si ya existe analizador
-        if (analyser) analyser.disconnect();
-
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        microphone = audioContext.createMediaStreamSource(stream);
-        microphone.connect(analyser);
-
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        const vuBar = document.getElementById('vu-bar');
-
-        function draw() {
-            requestAnimationFrame(draw);
-            analyser.getByteFrequencyData(dataArray);
-
-            let sum = 0;
-            for (let i = 0; i < dataArray.length; i++) {
-                sum += dataArray[i];
-            }
-            let average = sum / dataArray.length;
-
-            // Ganancia visual (x2.5) para que se note más
-            let percent = Math.min(100, average * 2.5);
-            vuBar.style.width = percent + "%";
-        }
-        draw();
-    }
-</script>
 
 </body>
 </html>
