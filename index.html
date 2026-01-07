@@ -3,216 +3,274 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RadioLink: Nombres Fijos</title>
+    <title>RadioLink: Master Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #fff; text-align: center; padding: 20px; }
-        .box { background: #1e1e1e; padding: 20px; border: 1px solid #333; max-width: 600px; margin: 0 auto; border-radius: 8px; }
+        :root { --primary: #007bff; --danger: #dc3545; --success: #28a745; --bg: #121212; --panel: #1e1e1e; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #fff; text-align: center; padding: 20px; margin: 0; }
 
-        input, select { padding: 10px; width: 90%; background: #000; color: #0f0; border: 1px solid #444; margin: 5px 0; font-family: monospace; }
-        label { display: block; text-align: left; margin-top: 10px; color: #aaa; font-size: 0.9em; }
+        .container { max-width: 600px; margin: 0 auto; background: var(--panel); border: 1px solid #333; border-radius: 8px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
 
-        button { padding: 12px; width: 100%; cursor: pointer; background: #444; color: white; border: none; font-weight: bold; margin-top: 15px; }
-        button.primary { background: #007bff; }
-        button.live { background: #dc3545; animation: pulse 1.5s infinite; }
-        button.connect { background: #28a745; }
+        h2 { margin-top: 0; color: #fff; letter-spacing: 1px; }
+        label { display: block; text-align: left; margin: 10px 0 5px; color: #aaa; font-size: 0.9rem; }
 
-        .section { padding: 15px; border-bottom: 1px solid #333; }
-        .hidden { display: none; }
+        input, select { width: 100%; padding: 12px; background: #000; color: #fff; border: 1px solid #444; border-radius: 4px; box-sizing: border-box; font-size: 1rem; }
+        input:focus, select:focus { border-color: var(--primary); outline: none; }
 
-        /* Vumetro */
-        #vu-meter { width: 0%; height: 10px; background: linear-gradient(90deg, #0f0, #ff0, #f00); transition: width 0.1s; margin-top: 5px; }
-        .meter-box { width: 90%; background: #333; height: 10px; margin: 0 auto; }
+        button { width: 100%; padding: 15px; margin-top: 20px; border: none; border-radius: 4px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.2s; }
+        .btn-blue { background: var(--primary); color: white; }
+        .btn-green { background: var(--success); color: white; }
+        .btn-red { background: var(--danger); color: white; animation: pulse 2s infinite; }
 
-        #status-log { font-family: monospace; font-size: 12px; color: #aaa; height: 80px; overflow-y: auto; text-align: left; background: #000; padding: 5px; margin-top: 10px; border: 1px solid #333; }
+        /* PANELES (Ocultar/Mostrar) */
+        .hidden { display: none !important; }
 
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        /* VÚMETRO */
+        .vu-container { background: #000; height: 12px; border-radius: 6px; margin-top: 10px; overflow: hidden; border: 1px solid #333; }
+        .vu-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #28a745 60%, #ffc107 80%, #dc3545 100%); transition: width 0.05s linear; }
+
+        /* LOGS */
+        #console-log { text-align: left; background: #000; color: #0f0; font-family: monospace; font-size: 12px; height: 100px; overflow-y: scroll; padding: 10px; margin-top: 20px; border: 1px solid #333; }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div class="box">
-        <h2>📡 RadioLink: Enlace P2P</h2>
+<div class="container">
+    <h2>📡 RadioLink <span style="font-size:0.6em; color:#aaa;">P2P Master</span></h2>
 
-        <div id="step-1" class="section">
-            <label>1. ¿Quién eres tú? (Crea un nombre único)</label>
-            <input type="text" id="my-custom-id" placeholder="Ej: cabina-luismex" value="cabina-luismex">
-            <button onclick="inicializarPeer()" class="primary">🔗 CONECTARSE A LA RED</button>
-            <p style="font-size: 0.8em; color: #666;">Usa nombres únicos para que nadie más los ocupe.</p>
-        </div>
-
-        <div id="step-2" class="section hidden">
-            <h3 style="color: #4facfe;">Soy: <span id="display-id">...</span></h3>
-
-            <hr style="border-color: #333;">
-
-            <label>DESTINO (A quién llamar):</label>
-            <input type="text" id="remote-id" placeholder="Ej: movil-luismex">
-
-            <label>CALIDAD:</label>
-            <select id="bitrate">
-                <option value="128">128 kbps (Radio FM)</option>
-                <option value="256">256 kbps (Estudio)</option>
-            </select>
-
-            <button id="btn-call" onclick="llamar()" class="connect">📞 LLAMAR Y TRANSMITIR</button>
-
-            <label>Nivel de Audio:</label>
-            <div class="meter-box"><div id="vu-meter"></div></div>
-        </div>
-
-        <div id="incoming-call" class="section hidden" style="background: #220;">
-            <h3>🔔 LLAMADA ENTRANTE</h3>
-            <button onclick="contestar()" class="connect">🔊 CONTESTAR AL AIRE</button>
-        </div>
-
-        <div id="status-log"></div>
-        <audio id="remote-audio"></audio>
+    <div id="screen-login">
+        <label>Elige tu nombre (ID):</label>
+        <input type="text" id="my-id-input" placeholder="ej: cabina-luis, movil-luis" value="">
+        <button class="btn-blue" onclick="initPeer()">🔗 CONECTAR AL SERVIDOR</button>
+        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">Usa nombres únicos y sin espacios.</p>
     </div>
 
-    <script>
-        let peer;
-        let localStream;
-        let currentCall;
-        let incomingRequest = null;
-        let audioContext, analyser, microphone;
+    <div id="screen-controls" class="hidden">
+        <div style="background: #2a2a2a; padding: 10px; border-radius: 4px; margin-bottom: 20px;">
+            <span style="color:#aaa;">Estás conectado como:</span><br>
+            <strong id="display-my-id" style="color: #4facfe; font-size: 1.2rem;">...</strong>
+        </div>
 
-        function log(msg, error = false) {
-            const box = document.getElementById('status-log');
-            const color = error ? 'red' : '#0f0';
-            box.innerHTML += `<div style="color:${color}">> ${msg}</div>`;
-            box.scrollTop = box.scrollHeight;
-        }
+        <div style="border-top: 1px solid #444; padding-top: 10px;">
+            <label>Llamar a (ID Destino):</label>
+            <input type="text" id="remote-id-input" placeholder="ej: cabina-luis">
 
-        // --- 1. INICIALIZAR CON NOMBRE FIJO ---
-        function inicializarPeer() {
-            const customId = document.getElementById('my-custom-id').value.trim();
-            if(!customId) return alert("Escribe un nombre.");
+            <label>Calidad de Audio (Bitrate):</label>
+            <select id="bitrate-select">
+                <option value="64">64 kbps (Voz - Bajo consumo)</option>
+                <option value="128" selected>128 kbps (Radio FM - Recomendado)</option>
+                <option value="192">192 kbps (Alta Fidelidad)</option>
+                <option value="256">256 kbps (Estudio - Requiere buen internet)</option>
+            </select>
 
-            // Creamos el Peer con el ID que tú elegiste
-            peer = new Peer(customId);
+            <button id="btn-transmit" class="btn-green" onclick="startCall()">🎙️ ABRIR MICRO Y TRANSMITIR</button>
+        </div>
+
+        <label>Monitor de Nivel:</label>
+        <div class="vu-container">
+            <div id="vu-bar" class="vu-bar"></div>
+        </div>
+    </div>
+
+    <div id="screen-incoming" class="hidden" style="background: #332d00; padding: 15px; border: 1px solid #ffc107; margin-bottom: 20px; border-radius: 4px;">
+        <h3 style="color: #ffc107; margin: 0;">🔔 LLAMADA ENTRANTE</h3>
+        <p>Alguien quiere transmitir audio.</p>
+        <button class="btn-green" onclick="answerCall()">🔊 ACEPTAR Y ESCUCHAR</button>
+    </div>
+
+    <div id="console-log">System ready.<br></div>
+</div>
+
+<audio id="remote-audio"></audio>
+
+<script>
+    // --- VARIABLES GLOBALES ---
+    let peer = null;
+    let localStream = null;
+    let currentCall = null;
+    let incomingCallRequest = null;
+    let audioContext, analyser, microphone;
+
+    // --- UTILIDAD DE LOGS ---
+    function log(msg, type = 'info') {
+        const consoleDiv = document.getElementById('console-log');
+        const color = type === 'error' ? '#ff4444' : (type === 'success' ? '#00ff00' : '#cccccc');
+        consoleDiv.innerHTML += `<div style="color:${color}">> ${msg}</div>`;
+        consoleDiv.scrollTop = consoleDiv.scrollHeight; // Auto-scroll
+    }
+
+    // --- 1. INICIALIZAR PEERJS ---
+    function initPeer() {
+        const myId = document.getElementById('my-id-input').value.trim();
+        if (!myId) return alert("Por favor escribe un nombre.");
+
+        log("Conectando a PeerJS...", 'info');
+
+        try {
+            peer = new Peer(myId);
 
             peer.on('open', (id) => {
-                log(`Conectado a la red como: ${id}`);
-                document.getElementById('step-1').classList.add('hidden');
-                document.getElementById('step-2').classList.remove('hidden');
-                document.getElementById('display-id').innerText = id;
+                log(`✅ Conexión establecida. ID: ${id}`, 'success');
+                document.getElementById('display-my-id').innerText = id;
+                document.getElementById('screen-login').classList.add('hidden');
+                document.getElementById('screen-controls').classList.remove('hidden');
             });
 
             peer.on('error', (err) => {
-                if (err.type === 'unavailable-id') {
-                    alert("¡Ese nombre YA ESTÁ EN USO! Alguien más lo tiene abierto o tú mismo en otra pestaña. Elige otro nombre.");
-                    log("Error: ID en uso.", true);
-                } else if (err.type === 'peer-unavailable') {
-                    log("❌ ERROR: El destino no existe o no está conectado. Revisa el nombre.", true);
-                    alert("El usuario al que llamas NO está conectado. Revisa que su página esté abierta y tenga el nombre correcto.");
-                } else {
-                    log("Error: " + err.type, true);
+                log(`❌ Error PeerJS: ${err.type}`, 'error');
+                if(err.type === 'unavailable-id') alert("Ese nombre ya está en uso. Elige otro.");
+                if(err.type === 'peer-unavailable') log("⚠️ El destino no está conectado o escribiste mal el ID.", 'error');
+            });
+
+            // Escuchar llamadas entrantes
+            peer.on('call', (call) => {
+                log("📞 ¡Llamada entrante detectada!", 'success');
+                incomingCallRequest = call;
+                document.getElementById('screen-incoming').classList.remove('hidden');
+                document.getElementById('screen-controls').classList.add('hidden'); // Ocultar controles normales
+            });
+
+        } catch (e) {
+            log("Error crítico al crear Peer: " + e, 'error');
+        }
+    }
+
+    // --- 2. GESTIÓN DEL MICRÓFONO (ROBUSTA) ---
+    async function getMicrophone() {
+        log("Solicitando acceso al micrófono...", 'info');
+        try {
+            // Intento 1: Alta Calidad (Sin filtros)
+            return await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    channelCount: 2
                 }
             });
-
-            // Preparar recepción de llamadas
-            peer.on('call', (call) => {
-                incomingRequest = call;
-                document.getElementById('incoming-call').classList.remove('hidden');
-                log("¡Alguien te está llamando!");
-            });
-        }
-
-        // --- 2. OBTENER MICROFONO (Robusto) ---
-        async function getMic() {
+        } catch (err) {
+            log("⚠️ Hardware no soporta modo 'Studio'. Cambiando a modo estándar...", 'info');
+            // Intento 2: Estándar (Fallback)
             try {
-                // Intento Hi-Fi
-                return await navigator.mediaDevices.getUserMedia({
-                    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-                });
-            } catch (e) {
-                log("Hardware simple detectado. Usando modo estándar.");
                 return await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (err2) {
+                if(err2.name === 'NotAllowedError') {
+                    alert("¡Permiso denegado! Debes permitir el micrófono en el candado 🔒 de la URL.");
+                    log("❌ PERMISO DENEGADO", 'error');
+                }
+                throw err2;
             }
         }
+    }
 
-        // --- 3. LLAMAR (TRANSMITIR) ---
-        async function llamar() {
-            const destId = document.getElementById('remote-id').value.trim();
-            const bitrate = document.getElementById('bitrate').value;
+    // --- 3. INICIAR TRANSMISIÓN (Llamar) ---
+    async function startCall() {
+        const destId = document.getElementById('remote-id-input').value.trim();
+        const bitrate = document.getElementById('bitrate-select').value;
 
-            if(!destId) return alert("Escribe el nombre del destino");
+        if (!destId) return alert("Escribe el ID del destino.");
 
-            try {
-                log("Abriendo micrófono...");
-                localStream = await getMic();
-                setupVuMeter(localStream);
+        try {
+            localStream = await getMicrophone();
+            setupVuMeter(localStream); // Ver mi propio audio
+            log("✅ Micrófono abierto. Llamando...", 'success');
 
-                log(`Llamando a ${destId}...`);
+            // Hack para Bitrate (SDP Munging)
+            const options = {
+                sdpTransform: (sdp) => {
+                    log(`Ajustando bitrate a ${bitrate} kbps...`);
+                    return sdp.replace(/a=fmtp:111.*/g, `a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=${bitrate * 1000}`);
+                }
+            };
 
-                // Modificar SDP para bitrate
-                const options = {
-                    sdpTransform: (sdp) => sdp.replace(/a=fmtp:111.*/g, `a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=${bitrate * 1000}`)
-                };
+            const call = peer.call(destId, localStream, options);
+            currentCall = call;
 
-                const call = peer.call(destId, localStream, options);
+            // UI Update
+            const btn = document.getElementById('btn-transmit');
+            btn.innerText = "📡 EN EL AIRE (Transmitiendo)";
+            btn.classList.remove('btn-green');
+            btn.classList.add('btn-red');
 
-                call.on('stream', remoteStream => {
-                    // Si el otro lado también nos habla (Talkback)
-                    document.getElementById('remote-audio').srcObject = remoteStream;
-                    document.getElementById('remote-audio').play();
-                });
+            call.on('close', () => {
+                log("Llamada finalizada.");
+                btn.innerText = "🎙️ ABRIR MICRO Y TRANSMITIR";
+                btn.classList.remove('btn-red');
+                btn.classList.add('btn-green');
+            });
 
-                call.on('close', () => {
-                    log("Llamada terminada.");
-                    document.getElementById('btn-call').classList.remove('live');
-                    document.getElementById('btn-call').innerText = "📞 LLAMAR Y TRANSMITIR";
-                });
+            call.on('error', (e) => log("Error en llamada: " + e, 'error'));
 
-                // UI Update
-                document.getElementById('btn-call').classList.add('live');
-                document.getElementById('btn-call').innerText = "📡 TRANSMITIENDO...";
-
-            } catch (err) {
-                log("Error Micrófono: " + err, true);
-                alert("Error de acceso al micrófono. Revisa permisos (Candado 🔒).");
-            }
-        }
-
-        // --- 4. CONTESTAR (RECIBIR) ---
-        function contestar() {
-            if(!incomingRequest) return;
-
-            document.getElementById('incoming-call').classList.add('hidden');
-
-            // Contestamos (podemos enviar audio de regreso si queremos, aquí enviamos null para solo escuchar)
-            incomingRequest.answer();
-
-            incomingRequest.on('stream', (remoteStream) => {
-                log("✅ Audio Conectado. Al aire.");
+            // Si el otro lado nos habla (Talkback)
+            call.on('stream', (remoteStream) => {
                 const audio = document.getElementById('remote-audio');
                 audio.srcObject = remoteStream;
                 audio.play();
-                setupVuMeter(remoteStream);
             });
+
+        } catch (e) {
+            log("No se pudo iniciar llamada: " + e, 'error');
         }
+    }
 
-        // --- VUMETRO ---
-        function setupVuMeter(stream) {
-            if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioContext.state === 'suspended') audioContext.resume();
+    // --- 4. RECIBIR TRANSMISIÓN (Contestar) ---
+    function answerCall() {
+        if (!incomingCallRequest) return;
 
-            analyser = audioContext.createAnalyser();
-            microphone = audioContext.createMediaStreamSource(stream);
-            microphone.connect(analyser);
-            analyser.fftSize = 256;
+        // Respondemos (podemos enviar nuestro audio o null si solo queremos escuchar)
+        // Para simplificar, respondemos solo para recibir, sin enviar audio de vuelta por ahora
+        incomingCallRequest.answer();
 
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
+        document.getElementById('screen-incoming').classList.add('hidden');
+        document.getElementById('screen-controls').classList.remove('hidden');
+        log("✅ Llamada contestada. Esperando buffer...", 'success');
 
-            function draw() {
-                requestAnimationFrame(draw);
-                analyser.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for(let i=0; i<bufferLength; i++) sum += dataArray[i];
-                let avg = sum / bufferLength;
-                document.getElementById('vu-meter').style.width = (avg * 2.5) + '%';
+        incomingCallRequest.on('stream', (remoteStream) => {
+            log("🔊 Audio recibido. Reproduciendo...", 'success');
+            const audio = document.getElementById('remote-audio');
+            audio.srcObject = remoteStream;
+            audio.play().catch(e => log("⚠️ Autoplay bloqueado. Haz clic en la página."));
+
+            // Conectar Vúmetro al audio que llega
+            setupVuMeter(remoteStream);
+        });
+    }
+
+    // --- 5. VÚMETRO VISUAL ---
+    function setupVuMeter(stream) {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+
+        // Evitar duplicados si ya existe analizador
+        if (analyser) analyser.disconnect();
+
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        microphone = audioContext.createMediaStreamSource(stream);
+        microphone.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const vuBar = document.getElementById('vu-bar');
+
+        function draw() {
+            requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
             }
-            draw();
+            let average = sum / dataArray.length;
+
+            // Ganancia visual (x2.5) para que se note más
+            let percent = Math.min(100, average * 2.5);
+            vuBar.style.width = percent + "%";
         }
+        draw();
+    }
+</script>
+
+</body>
+</html>
