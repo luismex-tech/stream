@@ -3,114 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RadioLink - Alta Fidelidad</title>
+    <title>RadioLink Studio - HiFi</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #222; color: white; text-align: center; padding: 20px; }
-        .box { background: #333; padding: 20px; border-radius: 10px; max-width: 500px; margin: 0 auto; }
-        input { padding: 10px; width: 70%; }
-        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; font-weight: bold; }
-        button.recibir { background: #28a745; }
-        #status { margin-top: 20px; font-style: italic; color: #aaa; }
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #e0e0e0; text-align: center; padding: 20px; }
+        .console { background: #1e1e1e; padding: 25px; border-radius: 8px; border: 1px solid #333; max-width: 650px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+        h2 { margin-top: 0; color: #fff; }
+        label { font-size: 0.9em; color: #aaa; display: block; margin-bottom: 5px; text-align: left; }
+        input, select { padding: 12px; width: 100%; background: #2c2c2c; color: #fff; border: 1px solid #444; border-radius: 4px; box-sizing: border-box; margin-bottom: 15px; }
+
+        button { width: 100%; padding: 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; font-size: 16px; margin-top: 10px; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+        button.live { background: #dc3545; animation: pulse 2s infinite; }
+
+        /* VÚMETRO LED ESTILO RADIO */
+        .vu-container { background: #000; padding: 10px; border-radius: 4px; margin: 20px 0; border: 1px solid #555; }
+        .vu-labels { display: flex; justify-content: space-between; font-size: 10px; color: #666; margin-bottom: 2px; }
+        .vu-meter-bg { width: 100%; height: 20px; background: #222; position: relative; overflow: hidden; }
+        .vu-bar { height: 100%; width: 0%; transition: width 0.05s linear;
+                  background: linear-gradient(90deg,
+                    #00ff00 0%,
+                    #00ff00 60%,
+                    #ffff00 61%,
+                    #ffff00 85%,
+                    #ff0000 86%,
+                    #ff0000 100%); }
+        .peak-indicator { position: absolute; top: 0; right: 0; background: red; color: white; font-size: 10px; padding: 2px 5px; display: none; }
+
+        .status-log { font-family: monospace; font-size: 12px; color: #0f0; margin-top: 15px; text-align: left; min-height: 20px; }
         .hidden { display: none; }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div class="box">
-        <h2>📻 RadioLink P2P</h2>
-        <p>Sistema de enlace remoto de alta calidad</p>
+    <div class="console">
+        <h2>📻 RadioLink Studio</h2>
 
-        <div id="id-panel">
-            <p>Tu ID para compartir:</p>
-            <h3 id="my-id">Generando...</h3>
+        <div style="background: #252525; padding: 10px; margin-bottom: 15px; border-radius: 4px;">
+            <label>TU ID (Comparte esto con la cabina):</label>
+            <div id="my-id" style="font-size: 1.2em; color: #4facfe; font-weight: bold; word-break: break-all;">Conectando...</div>
         </div>
 
-        <hr>
+        <div id="main-controls">
+            <label>ID DESTINO (Cabina):</label>
+            <input type="text" id="remote-id" placeholder="Ingresa el ID de la otra computadora">
 
-        <div id="connect-panel">
-            <input type="text" id="remote-id" placeholder="Pega aquí el ID de la otra parte">
-            <br><br>
-            <button onclick="conectarYTransmitir()">🎙️ CONECTAR Y TRANSMITIR (Lado Remoto)</button>
+            <label>CALIDAD DE AUDIO (Bitrate):</label>
+            <select id="bitrate-select">
+                <option value="64">64 kbps (Voz normal - Bajo consumo)</option>
+                <option value="128" selected>128 kbps (Calidad FM - Estándar)</option>
+                <option value="192">192 kbps (Alta Fidelidad)</option>
+                <option value="256">256 kbps (Estudio - Consumo alto)</option>
+                <option value="320">320 kbps (Máxima - Lossless feel)</option>
+            </select>
+
+            <button id="btn-transmit" onclick="startTransmission()">🎙️ INICIAR TRANSMISIÓN</button>
         </div>
 
-        <div id="status">Esperando acciones...</div>
+        <div id="receiver-controls" class="hidden">
+            <h3 style="color: #28a745;">📞 LLAMADA ENTRANTE</h3>
+            <p>Alguien quiere transmitir.</p>
+            <button onclick="answerCall()" style="background: #28a745;">🔊 ACEPTAR Y ESCUCHAR</button>
+        </div>
 
-        <audio id="remote-audio" autoplay controls></audio>
+        <div class="vu-container">
+            <div class="vu-labels"><span>-60dB</span><span>-20dB</span><span>-6dB</span><span>0dB</span></div>
+            <div class="vu-meter-bg">
+                <div id="vu-bar" class="vu-bar"></div>
+                <div id="peak-led" class="peak-indicator">CLIP</div>
+            </div>
+        </div>
+
+        <div id="status" class="status-log">> Sistema listo.</div>
+
+        <audio id="remote-audio"></audio>
     </div>
 
     <script>
-        // 1. Inicializar PeerJS (Usamos el servidor cloud gratuito de PeerJS para pruebas)
         const peer = new Peer();
         let localStream;
+        let currentCall;
+        let audioContext, analyser, microphone, javascriptNode;
 
-        // Mostrar mi ID cuando se conecte al servidor de señalización
+        // Log visual
+        function log(msg) {
+            const el = document.getElementById('status');
+            el.innerHTML = "> " + msg;
+            console.log(msg);
+        }
+
         peer.on('open', (id) => {
             document.getElementById('my-id').innerText = id;
-            document.getElementById('status').innerText = "Listo. Comparte tu ID o ingresa uno.";
+            log("Conectado al servidor. Listo para enlazar.");
         });
 
-        // 2. CONFIGURACIÓN CRÍTICA PARA RADIO (Alta Calidad)
-        // Esto desactiva el procesamiento de voz para que suene como estudio
-        const mediaConstraints = {
-            audio: {
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-                channelCount: 2, // Estéreo
-                sampleRate: 48000, // Calidad DVD/Radio
-                sampleSize: 16
-            },
-            video: false
-        };
+        peer.on('error', (err) => log("Error: " + err.type));
 
-        // 3. Lógica para el que RECIBE (La Cabina/Estudio)
-        peer.on('call', (call) => {
-            if(confirm("¿Aceptar conexión entrante de remoto?")) {
-                // Respondemos la llamada (sin enviar audio de vuelta necesariamente, o sí si quieres talkback)
-                call.answer();
-
-                call.on('stream', (remoteStream) => {
-                    document.getElementById('status').innerText = "🔴 AL AIRE: Recibiendo audio...";
-                    const audioElem = document.getElementById('remote-audio');
-                    audioElem.srcObject = remoteStream;
-                    // Asegurar que el volumen esté al máximo
-                    audioElem.volume = 1.0;
-                });
+        // --- MANEJO DE VÚMETRO ---
+        function setupVuMeter(stream) {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
-        });
+            if (audioContext.state === 'suspended') audioContext.resume();
 
-        // 4. Lógica para el que TRANSMITE (El Locutor Remoto)
-        async function conectarYTransmitir() {
+            analyser = audioContext.createAnalyser();
+            analyser.smoothingTimeConstant = 0.8;
+            analyser.fftSize = 1024;
+
+            microphone = audioContext.createMediaStreamSource(stream);
+            microphone.connect(analyser);
+
+            // Procesador de script para detectar volumen (manera eficiente)
+            const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+            analyser.connect(scriptProcessor);
+            scriptProcessor.connect(audioContext.destination);
+
+            scriptProcessor.onaudioprocess = function() {
+                const array = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(array);
+
+                let values = 0;
+                const length = array.length;
+                for (let i = 0; i < length; i++) {
+                    values += array[i];
+                }
+                const average = values / length;
+
+                // Mapear el valor promedio (0-255) a porcentaje (0-100) con algo de ganancia visual
+                let percent = Math.min(100, average * 2.5);
+
+                document.getElementById('vu-bar').style.width = percent + "%";
+
+                // Indicador de CLIP (Saturación) si pasa del 95%
+                const peakLed = document.getElementById('peak-led');
+                if(percent > 95) peakLed.style.display = 'block';
+                else peakLed.style.display = 'none';
+            };
+        }
+
+        // --- TRUCO PARA EL BITRATE (SDP Munging) ---
+        // WebRTC negocia automáticamente, pero podemos "hackear" el mensaje SDP para forzar calidad
+        function updateSdpBitrate(sdp, bitrate) {
+            // Buscamos la línea de formato de opus (usualmente 111) y agregamos maxaveragebitrate
+            const modifier = 'a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=' + (bitrate * 1000);
+
+            // Reemplazamos la línea existente o la agregamos si es estándar
+            // Esta regex busca la línea fmtp del codec opus
+            return sdp.replace(/a=fmtp:111.*/g, modifier);
+        }
+
+        // --- TRANSMISOR (LOCUTOR) ---
+        async function startTransmission() {
             const remoteId = document.getElementById('remote-id').value;
+            const bitrate = document.getElementById('bitrate-select').value;
+
             if (!remoteId) return alert("Ingresa el ID de la cabina");
 
-            document.getElementById('status').innerText = "Solicitando acceso al micrófono...";
-
             try {
-                // Obtener micrófono con calidad de estudio
-                localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
-
-                document.getElementById('status').innerText = "Conectando con cabina...";
-
-                // Realizar la llamada
-                const call = peer.call(remoteId, localStream);
-
-                call.on('stream', (remoteStream) => {
-                    // Si la cabina nos habla de vuelta (Talkback)
-                    document.getElementById('remote-audio').srcObject = remoteStream;
+                // Pedimos audio SIN procesamiento (Raw Audio)
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        channelCount: 2
+                    }
                 });
+
+                localStream = stream;
+                setupVuMeter(localStream); // Ver mi propio micro
+
+                log(`Iniciando transmisión a ${bitrate} kbps...`);
+
+                // Hacemos la llamada interceptando el SDP para inyectar el bitrate
+                const options = {
+                    sdpTransform: (sdp) => {
+                        log("Ajustando calidad de audio en protocolo...");
+                        return updateSdpBitrate(sdp, bitrate);
+                    }
+                };
+
+                const call = peer.call(remoteId, localStream, options);
+                currentCall = call;
+
+                document.getElementById('btn-transmit').classList.add('live');
+                document.getElementById('btn-transmit').innerText = "📡 EN EL AIRE (Transmitiendo)";
 
                 call.on('close', () => {
-                    document.getElementById('status').innerText = "Conexión terminada.";
+                    log("Conexión finalizada.");
+                    document.getElementById('btn-transmit').classList.remove('live');
                 });
 
-                document.getElementById('status').innerText = "🟢 TRANSMITIENDO";
-
             } catch (err) {
-                console.error(err);
-                alert("Error: No se pudo acceder al micrófono o conectar. (Asegúrate de usar HTTPS)");
+                log("Error acceso micro: " + err);
+                alert("No se pudo acceder al micrófono. Verifica HTTPS.");
             }
+        }
+
+        // --- RECEPTOR (CABINA) ---
+        let incomingCallRequest = null;
+
+        peer.on('call', (call) => {
+            incomingCallRequest = call;
+            document.getElementById('main-controls').classList.add('hidden');
+            document.getElementById('receiver-controls').classList.remove('hidden');
+            log("¡Llamada entrante detectada!");
+        });
+
+        function answerCall() {
+            if(!incomingCallRequest) return;
+
+            incomingCallRequest.answer(); // Respondemos
+
+            incomingCallRequest.on('stream', (remoteStream) => {
+                log("Recibiendo audio remoto...");
+
+                const audio = document.getElementById('remote-audio');
+                audio.srcObject = remoteStream;
+                audio.play();
+
+                // Conectar el vúmetro al audio que llega para ver que modula
+                setupVuMeter(remoteStream);
+            });
+
+            document.getElementById('receiver-controls').innerHTML = "<h3>🔴 AL AIRE</h3><p>Recibiendo señal...</p>";
         }
     </script>
 </body>
