@@ -3,234 +3,216 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RadioLink Studio - HiFi</title>
+    <title>RadioLink: Nombres Fijos</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #e0e0e0; text-align: center; padding: 20px; }
-        .console { background: #1e1e1e; padding: 25px; border-radius: 8px; border: 1px solid #333; max-width: 650px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #fff; text-align: center; padding: 20px; }
+        .box { background: #1e1e1e; padding: 20px; border: 1px solid #333; max-width: 600px; margin: 0 auto; border-radius: 8px; }
 
-        h2 { margin-top: 0; color: #fff; }
-        label { font-size: 0.9em; color: #aaa; display: block; margin-bottom: 5px; text-align: left; }
-        input, select { padding: 12px; width: 100%; background: #2c2c2c; color: #fff; border: 1px solid #444; border-radius: 4px; box-sizing: border-box; margin-bottom: 15px; }
+        input, select { padding: 10px; width: 90%; background: #000; color: #0f0; border: 1px solid #444; margin: 5px 0; font-family: monospace; }
+        label { display: block; text-align: left; margin-top: 10px; color: #aaa; font-size: 0.9em; }
 
-        button { width: 100%; padding: 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; font-size: 16px; margin-top: 10px; transition: 0.2s; }
-        button:hover { background: #0056b3; }
-        button.live { background: #dc3545; animation: pulse 2s infinite; }
+        button { padding: 12px; width: 100%; cursor: pointer; background: #444; color: white; border: none; font-weight: bold; margin-top: 15px; }
+        button.primary { background: #007bff; }
+        button.live { background: #dc3545; animation: pulse 1.5s infinite; }
+        button.connect { background: #28a745; }
 
-        /* VÚMETRO LED ESTILO RADIO */
-        .vu-container { background: #000; padding: 10px; border-radius: 4px; margin: 20px 0; border: 1px solid #555; }
-        .vu-labels { display: flex; justify-content: space-between; font-size: 10px; color: #666; margin-bottom: 2px; }
-        .vu-meter-bg { width: 100%; height: 20px; background: #222; position: relative; overflow: hidden; }
-        .vu-bar { height: 100%; width: 0%; transition: width 0.05s linear;
-                  background: linear-gradient(90deg,
-                    #00ff00 0%,
-                    #00ff00 60%,
-                    #ffff00 61%,
-                    #ffff00 85%,
-                    #ff0000 86%,
-                    #ff0000 100%); }
-        .peak-indicator { position: absolute; top: 0; right: 0; background: red; color: white; font-size: 10px; padding: 2px 5px; display: none; }
-
-        .status-log { font-family: monospace; font-size: 12px; color: #0f0; margin-top: 15px; text-align: left; min-height: 20px; }
+        .section { padding: 15px; border-bottom: 1px solid #333; }
         .hidden { display: none; }
 
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+        /* Vumetro */
+        #vu-meter { width: 0%; height: 10px; background: linear-gradient(90deg, #0f0, #ff0, #f00); transition: width 0.1s; margin-top: 5px; }
+        .meter-box { width: 90%; background: #333; height: 10px; margin: 0 auto; }
+
+        #status-log { font-family: monospace; font-size: 12px; color: #aaa; height: 80px; overflow-y: auto; text-align: left; background: #000; padding: 5px; margin-top: 10px; border: 1px solid #333; }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div class="console">
-        <h2>📻 RadioLink Studio</h2>
+    <div class="box">
+        <h2>📡 RadioLink: Enlace P2P</h2>
 
-        <div style="background: #252525; padding: 10px; margin-bottom: 15px; border-radius: 4px;">
-            <label>TU ID (Comparte esto con la cabina):</label>
-            <div id="my-id" style="font-size: 1.2em; color: #4facfe; font-weight: bold; word-break: break-all;">Conectando...</div>
+        <div id="step-1" class="section">
+            <label>1. ¿Quién eres tú? (Crea un nombre único)</label>
+            <input type="text" id="my-custom-id" placeholder="Ej: cabina-luismex" value="cabina-luismex">
+            <button onclick="inicializarPeer()" class="primary">🔗 CONECTARSE A LA RED</button>
+            <p style="font-size: 0.8em; color: #666;">Usa nombres únicos para que nadie más los ocupe.</p>
         </div>
 
-        <div id="main-controls">
-            <label>ID DESTINO (Cabina):</label>
-            <input type="text" id="remote-id" placeholder="Ingresa el ID de la otra computadora">
+        <div id="step-2" class="section hidden">
+            <h3 style="color: #4facfe;">Soy: <span id="display-id">...</span></h3>
 
-            <label>CALIDAD DE AUDIO (Bitrate):</label>
-            <select id="bitrate-select">
-                <option value="64">64 kbps (Voz normal - Bajo consumo)</option>
-                <option value="128" selected>128 kbps (Calidad FM - Estándar)</option>
-                <option value="192">192 kbps (Alta Fidelidad)</option>
-                <option value="256">256 kbps (Estudio - Consumo alto)</option>
-                <option value="320">320 kbps (Máxima - Lossless feel)</option>
+            <hr style="border-color: #333;">
+
+            <label>DESTINO (A quién llamar):</label>
+            <input type="text" id="remote-id" placeholder="Ej: movil-luismex">
+
+            <label>CALIDAD:</label>
+            <select id="bitrate">
+                <option value="128">128 kbps (Radio FM)</option>
+                <option value="256">256 kbps (Estudio)</option>
             </select>
 
-            <button id="btn-transmit" onclick="startTransmission()">🎙️ INICIAR TRANSMISIÓN</button>
+            <button id="btn-call" onclick="llamar()" class="connect">📞 LLAMAR Y TRANSMITIR</button>
+
+            <label>Nivel de Audio:</label>
+            <div class="meter-box"><div id="vu-meter"></div></div>
         </div>
 
-        <div id="receiver-controls" class="hidden">
-            <h3 style="color: #28a745;">📞 LLAMADA ENTRANTE</h3>
-            <p>Alguien quiere transmitir.</p>
-            <button onclick="answerCall()" style="background: #28a745;">🔊 ACEPTAR Y ESCUCHAR</button>
+        <div id="incoming-call" class="section hidden" style="background: #220;">
+            <h3>🔔 LLAMADA ENTRANTE</h3>
+            <button onclick="contestar()" class="connect">🔊 CONTESTAR AL AIRE</button>
         </div>
 
-        <div class="vu-container">
-            <div class="vu-labels"><span>-60dB</span><span>-20dB</span><span>-6dB</span><span>0dB</span></div>
-            <div class="vu-meter-bg">
-                <div id="vu-bar" class="vu-bar"></div>
-                <div id="peak-led" class="peak-indicator">CLIP</div>
-            </div>
-        </div>
-
-        <div id="status" class="status-log">> Sistema listo.</div>
-
+        <div id="status-log"></div>
         <audio id="remote-audio"></audio>
     </div>
 
     <script>
-          const peer = new Peer();
-          let localStream;
-          let currentCall;
-          let audioContext, analyser, microphone;
+        let peer;
+        let localStream;
+        let currentCall;
+        let incomingRequest = null;
+        let audioContext, analyser, microphone;
 
-          // --- SISTEMA DE LOGS EN PANTALLA ---
-          function log(msg, type = 'info') {
-              const el = document.getElementById('status');
-              const color = type === 'error' ? '#ff4444' : '#0f0';
-              el.innerHTML = `<span style="color:${color}">> ${msg}</span>`;
-              console.log(msg);
-          }
+        function log(msg, error = false) {
+            const box = document.getElementById('status-log');
+            const color = error ? 'red' : '#0f0';
+            box.innerHTML += `<div style="color:${color}">> ${msg}</div>`;
+            box.scrollTop = box.scrollHeight;
+        }
 
-          peer.on('open', (id) => {
-              document.getElementById('my-id').innerText = id;
-              log("Sistema en línea. Esperando instrucciones.");
-          });
+        // --- 1. INICIALIZAR CON NOMBRE FIJO ---
+        function inicializarPeer() {
+            const customId = document.getElementById('my-custom-id').value.trim();
+            if(!customId) return alert("Escribe un nombre.");
 
-          peer.on('error', (err) => log("ERROR PEERJS: " + err.type, 'error'));
+            // Creamos el Peer con el ID que tú elegiste
+            peer = new Peer(customId);
 
-          // --- VÚMETRO (Visualización) ---
-          function setupVuMeter(stream) {
-              try {
-                  if (!audioContext) {
-                      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                  }
-                  if (audioContext.state === 'suspended') audioContext.resume();
+            peer.on('open', (id) => {
+                log(`Conectado a la red como: ${id}`);
+                document.getElementById('step-1').classList.add('hidden');
+                document.getElementById('step-2').classList.remove('hidden');
+                document.getElementById('display-id').innerText = id;
+            });
 
-                  analyser = audioContext.createAnalyser();
-                  analyser.smoothingTimeConstant = 0.3;
-                  analyser.fftSize = 512;
+            peer.on('error', (err) => {
+                if (err.type === 'unavailable-id') {
+                    alert("¡Ese nombre YA ESTÁ EN USO! Alguien más lo tiene abierto o tú mismo en otra pestaña. Elige otro nombre.");
+                    log("Error: ID en uso.", true);
+                } else if (err.type === 'peer-unavailable') {
+                    log("❌ ERROR: El destino no existe o no está conectado. Revisa el nombre.", true);
+                    alert("El usuario al que llamas NO está conectado. Revisa que su página esté abierta y tenga el nombre correcto.");
+                } else {
+                    log("Error: " + err.type, true);
+                }
+            });
 
-                  microphone = audioContext.createMediaStreamSource(stream);
-                  microphone.connect(analyser);
+            // Preparar recepción de llamadas
+            peer.on('call', (call) => {
+                incomingRequest = call;
+                document.getElementById('incoming-call').classList.remove('hidden');
+                log("¡Alguien te está llamando!");
+            });
+        }
 
-                  const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
-                  analyser.connect(scriptProcessor);
-                  scriptProcessor.connect(audioContext.destination);
+        // --- 2. OBTENER MICROFONO (Robusto) ---
+        async function getMic() {
+            try {
+                // Intento Hi-Fi
+                return await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+                });
+            } catch (e) {
+                log("Hardware simple detectado. Usando modo estándar.");
+                return await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+        }
 
-                  scriptProcessor.onaudioprocess = function() {
-                      const array = new Uint8Array(analyser.frequencyBinCount);
-                      analyser.getByteFrequencyData(array);
-                      let values = 0;
-                      for (let i = 0; i < array.length; i++) values += array[i];
+        // --- 3. LLAMAR (TRANSMITIR) ---
+        async function llamar() {
+            const destId = document.getElementById('remote-id').value.trim();
+            const bitrate = document.getElementById('bitrate').value;
 
-                      const average = values / array.length;
-                      let percent = Math.min(100, average * 2.5);
-                      document.getElementById('vu-bar').style.width = percent + "%";
+            if(!destId) return alert("Escribe el nombre del destino");
 
-                      const peakLed = document.getElementById('peak-led');
-                      peakLed.style.display = (percent > 90) ? 'block' : 'none';
-                  };
-              } catch (e) {
-                  console.warn("No se pudo iniciar vúmetro (contexto de audio):", e);
-              }
-          }
+            try {
+                log("Abriendo micrófono...");
+                localStream = await getMic();
+                setupVuMeter(localStream);
 
-          // --- FUNCIÓN DE INTENTO DE MICRÓFONO (NUEVA Y ROBUSTA) ---
-          async function getMicStream() {
-              // 1. INTENTO: Calidad Estudio (Sin filtros)
-              try {
-                  log("Intentando abrir micrófono en Alta Fidelidad...");
-                  return await navigator.mediaDevices.getUserMedia({
-                      audio: {
-                          echoCancellation: false,
-                          noiseSuppression: false,
-                          autoGainControl: false,
-                          channelCount: 2
-                      }
-                  });
-              } catch (err) {
-                  log("⚠️ Hardware no soporta modo Estudio. Reintentando en modo Estándar...", 'error');
-                  console.warn("Fallo HiFi:", err);
-              }
+                log(`Llamando a ${destId}...`);
 
-              // 2. INTENTO: Calidad Estándar (Fallback)
-              try {
-                  return await navigator.mediaDevices.getUserMedia({ audio: true });
-              } catch (err) {
-                  throw err; // Si falla aquí, es bloqueo de permisos real
-              }
-          }
+                // Modificar SDP para bitrate
+                const options = {
+                    sdpTransform: (sdp) => sdp.replace(/a=fmtp:111.*/g, `a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=${bitrate * 1000}`)
+                };
 
-          // --- TRANSMISOR ---
-          async function startTransmission() {
-              const remoteId = document.getElementById('remote-id').value;
-              const bitrate = document.getElementById('bitrate-select').value;
+                const call = peer.call(destId, localStream, options);
 
-              if (!remoteId) return alert("Falta el ID destino");
+                call.on('stream', remoteStream => {
+                    // Si el otro lado también nos habla (Talkback)
+                    document.getElementById('remote-audio').srcObject = remoteStream;
+                    document.getElementById('remote-audio').play();
+                });
 
-              try {
-                  // Usamos la nueva función inteligente
-                  localStream = await getMicStream();
+                call.on('close', () => {
+                    log("Llamada terminada.");
+                    document.getElementById('btn-call').classList.remove('live');
+                    document.getElementById('btn-call').innerText = "📞 LLAMAR Y TRANSMITIR";
+                });
 
-                  log(`✅ Micrófono abierto. Conectando...`);
-                  setupVuMeter(localStream);
+                // UI Update
+                document.getElementById('btn-call').classList.add('live');
+                document.getElementById('btn-call').innerText = "📡 TRANSMITIENDO...";
 
-                  const options = {
-                      sdpTransform: (sdp) => {
-                          return sdp.replace(/a=fmtp:111.*/g, 'a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=' + (bitrate * 1000));
-                      }
-                  };
+            } catch (err) {
+                log("Error Micrófono: " + err, true);
+                alert("Error de acceso al micrófono. Revisa permisos (Candado 🔒).");
+            }
+        }
 
-                  const call = peer.call(remoteId, localStream, options);
-                  currentCall = call;
+        // --- 4. CONTESTAR (RECIBIR) ---
+        function contestar() {
+            if(!incomingRequest) return;
 
-                  document.getElementById('btn-transmit').classList.add('live');
-                  document.getElementById('btn-transmit').innerText = "📡 TRANSMITIENDO AHORA";
+            document.getElementById('incoming-call').classList.add('hidden');
 
-                  call.on('close', () => {
-                      log("Transmisión finalizada.");
-                      document.getElementById('btn-transmit').classList.remove('live');
-                  });
+            // Contestamos (podemos enviar audio de regreso si queremos, aquí enviamos null para solo escuchar)
+            incomingRequest.answer();
 
-                  call.on('error', (e) => log("Error en llamada: " + e, 'error'));
+            incomingRequest.on('stream', (remoteStream) => {
+                log("✅ Audio Conectado. Al aire.");
+                const audio = document.getElementById('remote-audio');
+                audio.srcObject = remoteStream;
+                audio.play();
+                setupVuMeter(remoteStream);
+            });
+        }
 
-              } catch (err) {
-                  // Aquí capturamos el error real exacto
-                  if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                      log("❌ ACCESO DENEGADO: Haz clic en el candado 🔒 de la URL y permite el micrófono.", 'error');
-                  } else if (err.name === 'NotFoundError') {
-                      log("❌ NO SE DETECTA MICRÓFONO: Conecta uno.", 'error');
-                  } else {
-                      log("❌ ERROR DESCONOCIDO: " + err.message, 'error');
-                  }
-              }
-          }
+        // --- VUMETRO ---
+        function setupVuMeter(stream) {
+            if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') audioContext.resume();
 
-          // --- RECEPTOR ---
-          let incomingCallRequest = null;
-          peer.on('call', (call) => {
-              incomingCallRequest = call;
-              document.getElementById('receiver-controls').classList.remove('hidden');
-              log("¡Llamada entrante!");
-          });
+            analyser = audioContext.createAnalyser();
+            microphone = audioContext.createMediaStreamSource(stream);
+            microphone.connect(analyser);
+            analyser.fftSize = 256;
 
-          function answerCall() {
-              if(!incomingCallRequest) return;
-              incomingCallRequest.answer();
-              incomingCallRequest.on('stream', (remoteStream) => {
-                  log("🔊 Audio recibido y reproduciendo.");
-                  const audio = document.getElementById('remote-audio');
-                  audio.srcObject = remoteStream;
-                  audio.play().catch(e => log("Error Autoplay: Haz clic en la página."));
-                  setupVuMeter(remoteStream);
-              });
-              document.getElementById('receiver-controls').innerHTML = "<h3 style='color:#0f0'>ENLAZADO</h3>";
-          }
-      </script>
-</body>
-</html>
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            function draw() {
+                requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for(let i=0; i<bufferLength; i++) sum += dataArray[i];
+                let avg = sum / bufferLength;
+                document.getElementById('vu-meter').style.width = (avg * 2.5) + '%';
+            }
+            draw();
+        }
