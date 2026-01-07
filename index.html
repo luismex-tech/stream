@@ -3,34 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RadioLink: Master Edition</title>
+    <title>RadioLink: 4G Pro Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --primary: #007bff; --danger: #dc3545; --success: #28a745; --bg: #121212; --panel: #1e1e1e; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #fff; text-align: center; padding: 20px; margin: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: #fff; text-align: center; padding: 15px; margin: 0; }
 
-        .container { max-width: 600px; margin: 0 auto; background: var(--panel); border: 1px solid #333; border-radius: 8px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .container { max-width: 600px; margin: 0 auto; background: var(--panel); border: 1px solid #333; border-radius: 12px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
 
-        h2 { margin-top: 0; color: #fff; letter-spacing: 1px; }
-        label { display: block; text-align: left; margin: 10px 0 5px; color: #aaa; font-size: 0.9rem; }
+        h2 { margin-top: 0; color: #fff; letter-spacing: 0.5px; font-weight: 600; }
+        .badge { background: #333; color: #aaa; padding: 2px 6px; border-radius: 4px; font-size: 0.6em; vertical-align: middle; }
 
-        input, select { width: 100%; padding: 12px; background: #000; color: #fff; border: 1px solid #444; border-radius: 4px; box-sizing: border-box; font-size: 1rem; }
+        label { display: block; text-align: left; margin: 15px 0 5px; color: #ccc; font-size: 0.9rem; font-weight: 500; }
+
+        input, select { width: 100%; padding: 14px; background: #000; color: #fff; border: 1px solid #444; border-radius: 6px; box-sizing: border-box; font-size: 1rem; margin-bottom: 5px; }
         input:focus, select:focus { border-color: var(--primary); outline: none; }
 
-        button { width: 100%; padding: 15px; margin-top: 20px; border: none; border-radius: 4px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.2s; }
+        button { width: 100%; padding: 16px; margin-top: 20px; border: none; border-radius: 6px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: transform 0.1s; text-transform: uppercase; letter-spacing: 1px; }
+        button:active { transform: scale(0.98); }
         .btn-blue { background: var(--primary); color: white; }
         .btn-green { background: var(--success); color: white; }
         .btn-red { background: var(--danger); color: white; animation: pulse 2s infinite; }
 
-        /* PANELES (Ocultar/Mostrar) */
+        /* UTILIDADES */
         .hidden { display: none !important; }
+        .card { background: #2a2a2a; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid var(--primary); text-align: left; }
+        .card strong { display: block; font-size: 1.2rem; color: #4facfe; margin-top: 5px; word-break: break-all; }
 
-        /* VÚMETRO */
-        .vu-container { background: #000; height: 12px; border-radius: 6px; margin-top: 10px; overflow: hidden; border: 1px solid #333; }
-        .vu-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #28a745 60%, #ffc107 80%, #dc3545 100%); transition: width 0.05s linear; }
+        /* VÚMETRO LED */
+        .vu-wrapper { background: #000; border: 1px solid #444; border-radius: 4px; padding: 2px; margin-top: 5px; }
+        .vu-container { height: 12px; border-radius: 2px; overflow: hidden; position: relative; }
+        .vu-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #28a745 60%, #ffc107 80%, #dc3545 100%); transition: width 0.08s ease-out; }
 
-        /* LOGS */
-        #console-log { text-align: left; background: #000; color: #0f0; font-family: monospace; font-size: 12px; height: 100px; overflow-y: scroll; padding: 10px; margin-top: 20px; border: 1px solid #333; }
+        /* CONSOLA DE LOGS */
+        #console-log { text-align: left; background: #000; color: #0f0; font-family: 'Consolas', monospace; font-size: 11px; height: 120px; overflow-y: auto; padding: 10px; margin-top: 20px; border: 1px solid #333; border-radius: 4px; }
 
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
     </style>
@@ -38,45 +44,47 @@
 <body>
 
 <div class="container">
-    <h2>📡 RadioLink <span style="font-size:0.6em; color:#aaa;">P2P Master</span></h2>
+    <h2>📡 RadioLink <span class="badge">4G READY</span></h2>
 
     <div id="screen-login">
-        <label>Elige tu nombre (ID):</label>
-        <input type="text" id="my-id-input" placeholder="ej: cabina-luis, movil-luis" value="">
-        <button class="btn-blue" onclick="initPeer()">🔗 CONECTAR AL SERVIDOR</button>
-        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">Usa nombres únicos y sin espacios.</p>
+        <label>Identifícate (Nombre Único):</label>
+        <input type="text" id="my-id-input" placeholder="Ej: cabina-luis, movil-luis" value="">
+        <button class="btn-blue" onclick="initPeer()">🔗 CONECTAR A LA RED</button>
+        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">Si usas datos móviles, puede tardar unos segundos.</p>
     </div>
 
     <div id="screen-controls" class="hidden">
-        <div style="background: #2a2a2a; padding: 10px; border-radius: 4px; margin-bottom: 20px;">
-            <span style="color:#aaa;">Estás conectado como:</span><br>
-            <strong id="display-my-id" style="color: #4facfe; font-size: 1.2rem;">...</strong>
+        <div class="card">
+            <span style="color:#aaa; font-size:0.8em;">TU IDENTIFICADOR:</span>
+            <strong id="display-my-id">...</strong>
         </div>
 
-        <div style="border-top: 1px solid #444; padding-top: 10px;">
+        <div style="border-top: 1px solid #333; padding-top: 10px;">
             <label>Llamar a (ID Destino):</label>
-            <input type="text" id="remote-id-input" placeholder="ej: cabina-luis">
+            <input type="text" id="remote-id-input" placeholder="Ej: cabina-luis">
 
-            <label>Calidad de Audio (Bitrate):</label>
+            <label>Calidad de Transmisión:</label>
             <select id="bitrate-select">
-                <option value="64">64 kbps (Voz - Bajo consumo)</option>
-                <option value="128" selected>128 kbps (Radio FM - Recomendado)</option>
+                <option value="64">64 kbps (Voz - Ahorro Datos)</option>
+                <option value="128" selected>128 kbps (Radio FM - Estándar)</option>
                 <option value="192">192 kbps (Alta Fidelidad)</option>
-                <option value="256">256 kbps (Estudio - Requiere buen internet)</option>
+                <option value="256">256 kbps (Estudio Pro)</option>
             </select>
 
             <button id="btn-transmit" class="btn-green" onclick="startCall()">🎙️ ABRIR MICRO Y TRANSMITIR</button>
         </div>
 
-        <label>Monitor de Nivel:</label>
-        <div class="vu-container">
-            <div id="vu-bar" class="vu-bar"></div>
+        <label>Nivel de Audio (Entrada/Salida):</label>
+        <div class="vu-wrapper">
+            <div class="vu-container">
+                <div id="vu-bar" class="vu-bar"></div>
+            </div>
         </div>
     </div>
 
-    <div id="screen-incoming" class="hidden" style="background: #332d00; padding: 15px; border: 1px solid #ffc107; margin-bottom: 20px; border-radius: 4px;">
-        <h3 style="color: #ffc107; margin: 0;">🔔 LLAMADA ENTRANTE</h3>
-        <p>Alguien quiere transmitir audio.</p>
+    <div id="screen-incoming" class="hidden" style="background: #332d00; padding: 20px; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 20px;">
+        <h3 style="color: #ffc107; margin: 0 0 10px 0;">🔔 LLAMADA ENTRANTE</h3>
+        <p>Alguien quiere transmitir.</p>
         <button class="btn-green" onclick="answerCall()">🔊 ACEPTAR Y ESCUCHAR</button>
     </div>
 
@@ -85,67 +93,212 @@
 
 <audio id="remote-audio"></audio>
 
-// --- 1. INICIALIZAR PEERJS CON SOPORTE 4G (TURN) ---
+<script>
+    // --- VARIABLES GLOBALES ---
+    let peer = null;
+    let localStream = null;
+    let currentCall = null;
+    let incomingCallRequest = null;
+    let audioContext, analyser, microphone;
+
+    // --- LOGGING ---
+    function log(msg, type = 'info') {
+        const consoleDiv = document.getElementById('console-log');
+        const color = type === 'error' ? '#ff4444' : (type === 'success' ? '#00ff00' : '#cccccc');
+        const time = new Date().toLocaleTimeString();
+        consoleDiv.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    // --- 1. INICIALIZAR CON TURN (SOPORTE 4G) ---
     function initPeer() {
         const myId = document.getElementById('my-id-input').value.trim();
-        if (!myId) return alert("Por favor escribe un nombre.");
+        if (!myId) return alert("Escribe un nombre para identificarte.");
 
-        log("Conectando con soporte para redes móviles...", 'info');
+        log("Iniciando conexión (Configurando TURN)...", 'info');
+
+        // CONFIGURACIÓN CRÍTICA PARA DATOS MÓVILES
+        const peerConfig = {
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' }, // STUN (Google)
+                    {
+                        urls: "turn:openrelay.metered.ca:80",  // TURN (OpenRelay - Gratis)
+                        username: "openrelayproject",
+                        credential: "openrelayproject"
+                    },
+                    {
+                        urls: "turn:openrelay.metered.ca:443",
+                        username: "openrelayproject",
+                        credential: "openrelayproject"
+                    },
+                    {
+                        urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                        username: "openrelayproject",
+                        credential: "openrelayproject"
+                    }
+                ]
+            },
+            debug: 1
+        };
 
         try {
-            // AQUÍ ESTÁ LA MAGIA PARA QUE FUNCIONE EN 4G
-            peer = new Peer(myId, {
-                config: {
-                    iceServers: [
-                        // Servidores STUN (Ayudan a encontrar la ruta pública - Gratuitos de Google)
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-
-                        // Servidor TURN (El "Puente" para saltar el firewall de Telcel/Movistar)
-                        // Usamos OpenRelay (Gratuito para desarrollo)
-                        {
-                            urls: "turn:openrelay.metered.ca:80",
-                            username: "openrelayproject",
-                            credential: "openrelayproject"
-                        },
-                        {
-                            urls: "turn:openrelay.metered.ca:443",
-                            username: "openrelayproject",
-                            credential: "openrelayproject"
-                        },
-                        {
-                            urls: "turn:openrelay.metered.ca:443?transport=tcp",
-                            username: "openrelayproject",
-                            credential: "openrelayproject"
-                        }
-                    ]
-                }
-            });
+            peer = new Peer(myId, peerConfig);
 
             peer.on('open', (id) => {
-                log(`✅ Conexión establecida (Modo Relay Activo). ID: ${id}`, 'success');
+                log(`✅ CONECTADO A LA RED. Tu ID: ${id}`, 'success');
                 document.getElementById('display-my-id').innerText = id;
                 document.getElementById('screen-login').classList.add('hidden');
                 document.getElementById('screen-controls').classList.remove('hidden');
             });
 
             peer.on('error', (err) => {
-                log(`❌ Error PeerJS: ${err.type}`, 'error');
-                if(err.type === 'unavailable-id') alert("Ese nombre ya está en uso. Elige otro.");
-                if(err.type === 'peer-unavailable') log("⚠️ Destino no encontrado. Revisa el ID.", 'error');
+                log(`❌ Error: ${err.type}`, 'error');
+                if(err.type === 'unavailable-id') alert("¡Nombre ocupado! Usa otro.");
+                if(err.type === 'peer-unavailable') log("⚠️ Destino no encontrado. Verifica el ID.", 'error');
+                if(err.type === 'network') log("⚠️ Problema de red. ¿Tienes internet?", 'error');
             });
 
             peer.on('call', (call) => {
-                log("📞 ¡Llamada entrante detectada!", 'success');
+                log("📞 ¡Llamada Entrante!", 'success');
                 incomingCallRequest = call;
                 document.getElementById('screen-incoming').classList.remove('hidden');
                 document.getElementById('screen-controls').classList.add('hidden');
             });
 
         } catch (e) {
-            log("Error crítico al crear Peer: " + e, 'error');
+            log("Error crítico: " + e, 'error');
         }
     }
+
+    // --- 2. MICROFONO INTELIGENTE (HiFi -> Fallback) ---
+    async function getMicrophone() {
+        log("Abriendo micrófono...", 'info');
+        try {
+            // Intento 1: Modo Radio (Sin procesamiento)
+            return await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    channelCount: 2
+                }
+            });
+        } catch (err) {
+            log("⚠️ Hardware no soporta HiFi. Usando modo estándar.", 'info');
+            // Intento 2: Modo Compatible
+            try {
+                return await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (err2) {
+                if(err2.name === 'NotAllowedError') {
+                    alert("⚠️ ACCESO DENEGADO: Desbloquea el micrófono en la barra de dirección (Candado).");
+                }
+                throw err2;
+            }
+        }
+    }
+
+    // --- 3. TRANSMITIR (LLAMAR) ---
+    async function startCall() {
+        const destId = document.getElementById('remote-id-input').value.trim();
+        const bitrate = document.getElementById('bitrate-select').value;
+
+        if (!destId) return alert("Escribe el ID de la Cabina.");
+
+        try {
+            localStream = await getMicrophone();
+            setupVuMeter(localStream); // Monitor local
+            log("Micrófono OK. Estableciendo enlace...", 'success');
+
+            // Modificar SDP para forzar Bitrate
+            const options = {
+                sdpTransform: (sdp) => {
+                    log(`Configurando calidad: ${bitrate} kbps`);
+                    return sdp.replace(/a=fmtp:111.*/g, `a=fmtp:111 minptime=10;useinbandfec=1;maxaveragebitrate=${bitrate * 1000}`);
+                }
+            };
+
+            const call = peer.call(destId, localStream, options);
+            currentCall = call;
+
+            // UI Update
+            const btn = document.getElementById('btn-transmit');
+            btn.innerHTML = "📡 <b>EN EL AIRE</b> (Transmitiendo)";
+            btn.classList.replace('btn-green', 'btn-red');
+
+            call.on('close', () => {
+                log("Transmisión finalizada.");
+                btn.innerHTML = "🎙️ ABRIR MICRO Y TRANSMITIR";
+                btn.classList.replace('btn-red', 'btn-green');
+            });
+
+            call.on('error', (e) => log("Error en llamada: " + e, 'error'));
+
+            // Si recibimos audio de retorno (Talkback)
+            call.on('stream', (remoteStream) => {
+                const audio = document.getElementById('remote-audio');
+                audio.srcObject = remoteStream;
+                audio.play();
+            });
+
+        } catch (e) {
+            log("Fallo al iniciar: " + e.name, 'error');
+        }
+    }
+
+    // --- 4. RECIBIR (CABINA) ---
+    function answerCall() {
+        if (!incomingCallRequest) return;
+
+        incomingCallRequest.answer(); // Contestar (Modo solo escucha)
+
+        document.getElementById('screen-incoming').classList.add('hidden');
+        document.getElementById('screen-controls').classList.remove('hidden');
+        log("✅ Enlazado. Recibiendo señal...", 'success');
+
+        incomingCallRequest.on('stream', (remoteStream) => {
+            log("🔊 Audio conectado.", 'success');
+            const audio = document.getElementById('remote-audio');
+            audio.srcObject = remoteStream;
+            audio.play().catch(e => alert("Haz clic en la pantalla para permitir el audio."));
+            setupVuMeter(remoteStream); // Monitor remoto
+        });
+    }
+
+    // --- 5. VÚMETRO VISUAL ---
+    function setupVuMeter(stream) {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+
+        if (analyser) analyser.disconnect();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 128;
+
+        microphone = audioContext.createMediaStreamSource(stream);
+        microphone.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const vuBar = document.getElementById('vu-bar');
+
+        function draw() {
+            requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+
+            // Lógica visual: promedio amplificado
+            let average = sum / dataArray.length;
+            let percent = Math.min(100, average * 2.5);
+
+            vuBar.style.width = percent + "%";
+
+            // Cambio de color si satura (Clip)
+            if(percent > 95) vuBar.style.backgroundColor = "red";
+            else vuBar.style.backgroundColor = "";
+        }
+        draw();
+    }
+</script>
 
 </body>
 </html>
